@@ -1,244 +1,311 @@
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
-// ---------- ENUMS ----------
-enum Status {
-    SUCCESS,
-    FAILURE,
-    PARTIAL
+enum VehicleSize{
+    SMALL,
+    MEDIUM,
+    LARGE
 }
 
-// ---------- INTERFACES ----------
-interface Vehicle {
-    double calculateCharge();
-    Slot getSlot();
-    void setSlot(Slot slot);
-    void setEntryTime();
-    void setExitTime();
-    double getArea();
-    boolean isPaid();
-    void markPaid();
-}
+abstract class Vehicle {
+    private String licensePlate;
+    private VehicleSize vehicleSize;
 
-interface Payment {
-    Status makePayment(Vehicle vehicle);
-}
-
-// ---------- ABSTRACT BASE CLASS ----------
-abstract class AbstractVehicle implements Vehicle {
-    protected double costPerHour;
-    protected double charge;
-    protected boolean paid;
-    protected double area;
-    protected LocalDateTime entryTime, exitTime;
-    protected Slot slot;
-
-    public AbstractVehicle(double area, double costPerHour) {
-        this.area = area;
-        this.costPerHour = costPerHour;
+    public Vehicle(String licensePlate, VehicleSize vehicleSize) {
+        this.licensePlate = licensePlate;
+        this.vehicleSize = vehicleSize;
     }
 
-    @Override
-    public double calculateCharge() {
-        if (entryTime != null && exitTime != null) {
-            long minutes = Duration.between(entryTime, exitTime).toMinutes();
-            double hours = minutes / 60.0;
-            this.charge = hours * costPerHour;
-            return this.charge;
-        }
-        return -1.0; // invalid charge
+    public String getLicensePlate() {
+        return licensePlate;
+    }
+    public void setLicensePlate(String licensePlate) {
+        this.licensePlate = licensePlate;
     }
 
-    @Override
-    public Slot getSlot() {
-        return this.slot;
+    public VehicleSize getVehicleSize() {
+        return vehicleSize;
     }
-
-    @Override
-    public void setSlot(Slot slot) {
-        this.slot = slot;
-    }
-
-    @Override
-    public void setEntryTime() {
-        this.entryTime = LocalDateTime.now();
-    }
-
-    @Override
-    public void setExitTime() {
-        this.exitTime = LocalDateTime.now();
-    }
-
-    @Override
-    public double getArea() {
-        return this.area;
-    }
-
-    @Override
-    public boolean isPaid() {
-        return this.paid;
-    }
-
-    @Override
-    public void markPaid() {
-        this.paid = true;
-    }
-
-    @Override
-    public String toString() {
-        return this.getClass().getSimpleName() +
-                " [area=" + area + ", slot=" + (slot != null ? slot.getArea() : "NONE") + "]";
+    public void setVehicleSize(VehicleSize vehicleSize) {
+        this.vehicleSize = vehicleSize;
     }
 }
 
-// ---------- VEHICLE TYPES ----------
-class Car extends AbstractVehicle {
-    public Car(double area) {
-        super(area, 20); // Rs. 20/hour
+class Motorcycle extends Vehicle {
+    public Motorcycle(String licensePlate) {
+        super(licensePlate, VehicleSize.SMALL);
     }
 }
 
-class Bike extends AbstractVehicle {
-    public Bike(double area) {
-        super(area, 10); // Rs. 10/hour
+class Car extends Vehicle {
+    public Car(String licensePlate) {
+        super(licensePlate, VehicleSize.MEDIUM);
     }
 }
 
-class Bus extends AbstractVehicle {
-    public Bus(double area) {
-        super(area, 30); // Rs. 30/hour
+class Truck extends Vehicle {
+    public Truck(String licensePlate) {
+        super(licensePlate, VehicleSize.LARGE);
     }
 }
 
-// ---------- PAYMENT IMPLEMENTATION ----------
-class Gpay implements Payment {
+// NOTE: I haven't implemented park and unpark in the abstract class although the implementation is same for now
+//      Just to accomodate flexibility in algorithms. In future we may decide park multiple Small vehicles in Medium
+//      Or Large.
+
+abstract class ParkingSpot {
+    private boolean isAvailable;
+    private VehicleSize vehicleSize;
+    private int spotNumber;
+    private Vehicle vehicle;
+
+    public ParkingSpot(boolean isAvailable, VehicleSize vehicleSize, int spotNumber) {
+        this.isAvailable = isAvailable;
+        this.vehicleSize = vehicleSize;
+        this.spotNumber = spotNumber;
+        this.vehicle = null;
+    }
+
+    public boolean isAvailable() {
+        return isAvailable;
+    }
+    public VehicleSize getVehicleSize() {
+        return vehicleSize;
+    }
+    public int getSpotNumber() {
+        return spotNumber;
+    }
+    public Vehicle getVehicle() {
+        return vehicle;
+    }
+
+    public void setVehicle(Vehicle vehicle) {
+        this.vehicle = vehicle;
+    }
+    public void setAvailable(boolean available) {
+        isAvailable = available;
+    }
+    public abstract void park(Vehicle vehicle);
+    public abstract void unpark();
+}
+
+class CompactSpot extends ParkingSpot {
+    public CompactSpot(int spotNumber) {
+        super(true, VehicleSize.SMALL, spotNumber);
+    }
     @Override
-    public Status makePayment(Vehicle vehicle) {
-        double amount = vehicle.calculateCharge();
-        if (amount < 0) {
-            return Status.FAILURE;
-        }
-        vehicle.markPaid();
-        System.out.println("Payment of Rs. " + amount + " done successfully via GPay.");
-        return Status.SUCCESS;
-    }
-}
-
-// ---------- PARKING COMPONENTS ----------
-class Slot {
-    private double area;
-    private boolean occupied;
-
-    public Slot(double area) {
-        this.area = area;
-        this.occupied = false;
-    }
-
-    public double getArea() {
-        return area;
-    }
-
-    public boolean isOccupied() {
-        return occupied;
-    }
-
-    public void useSlot() {
-        this.occupied = true;
-    }
-
-    public void emptySlot() {
-        this.occupied = false;
+    public void park(Vehicle vehicle) {
+        super.setAvailable(false);
+        super.setVehicle(vehicle);
     }
 
     @Override
-    public String toString() {
-        return "Slot [area=" + area + ", occupied=" + occupied + "]";
+    public void unpark() {
+        super.setAvailable(true);
+        super.setVehicle(null);
     }
 }
 
-class Floor {
-    private int size;
-    List<Slot> slots = new ArrayList<>();
-
-    public Floor(int size, double defaultArea) {
-        this.size = size;
-        for (int i = 0; i < size; i++) {
-            this.slots.add(new Slot(defaultArea));
-        }
+class RegulartSpot extends ParkingSpot {
+    public RegulartSpot(int spotNumber) {
+        super(true, VehicleSize.MEDIUM, spotNumber);
+    }
+    @Override
+    public void park(Vehicle vehicle) {
+        super.setAvailable(false);
+        super.setVehicle(vehicle);
     }
 
-    public Slot getFirstEmptySlot(double requiredArea) {
-        for (Slot slot : slots) {
-            if (!slot.isOccupied() && slot.getArea() >= requiredArea) {
-                return slot;
+    @Override
+    public void unpark() {
+        super.setAvailable(true);
+        super.setVehicle(null);
+    }
+}
+
+class OversizedSpot extends ParkingSpot {
+    public OversizedSpot(int spotNumber) {
+        super(true, VehicleSize.LARGE, spotNumber);
+    }
+    @Override
+    public void park(Vehicle vehicle) {
+        super.setAvailable(false);
+        super.setVehicle(vehicle);
+    }
+
+    @Override
+    public void unpark() {
+        super.setAvailable(true);
+        super.setVehicle(null);
+    }
+}
+
+
+// Singleton
+class ParkingManager {
+    HashMap<Vehicle, ParkingSpot> vehicleToSpotMap;
+    HashMap<VehicleSize, List<ParkingSpot>> availableSpotMap;
+    public ParkingManager(HashMap<VehicleSize, List<ParkingSpot>> availableSpotMap) {
+        this.availableSpotMap = availableSpotMap;
+        this.vehicleToSpotMap = new HashMap<>();
+    }
+
+    public ParkingSpot findSpot(Vehicle vehicle){
+        VehicleSize vehicleSize = vehicle.getVehicleSize();
+
+        for(ParkingSpot spot : availableSpotMap.get(vehicleSize)){
+            if(spot.isAvailable()){
+                return spot;
             }
+        }
+
+        return null;
+    }
+
+    public ParkingSpot parkVehicle(Vehicle vehicle){
+        ParkingSpot spot = findSpot(vehicle);
+        if(spot != null){
+            spot.park(vehicle);
+            vehicleToSpotMap.put(vehicle, spot);
+            return spot;
         }
         return null;
     }
 
-    public int getAvailableSlotsCount() {
-        return (int) slots.stream().filter(s -> !s.isOccupied()).count();
+    public void unparkVehicle(Vehicle vehicle){
+        ParkingSpot spot = vehicleToSpotMap.get(vehicle);
+        spot.unpark();
+        vehicleToSpotMap.remove(vehicle);
+    }
+
+}
+
+
+class Ticket {
+    private int ticketNumber;
+    private Vehicle vehicle;
+    private ParkingSpot spot;
+    private LocalDateTime entryTime;
+    private LocalDateTime exitTime;
+
+    public Ticket(int ticketNumber, Vehicle vehicle, ParkingSpot spot, LocalDateTime entryTime) {
+        this.ticketNumber = ticketNumber;
+        this.vehicle = vehicle;
+        this.spot = spot;
+        this.entryTime = entryTime;
+        this.exitTime = null;
+    }
+
+    public int getTicketNumber() {
+        return ticketNumber;
+    }
+    public Vehicle getVehicle() {
+        return vehicle;
+    }
+    public ParkingSpot getSpot() {
+        return spot;
+    }
+    public LocalDateTime getEntryTime() {
+        return entryTime;
+    }
+    public LocalDateTime getExitTime() {
+        return exitTime;
+    }
+    public void setExitTime(LocalDateTime exitTime) {
+        this.exitTime = exitTime;
+    }
+    public BigDecimal calculateDuration(){
+        if(exitTime == null) setExitTime(LocalDateTime.now());
+
+        return new BigDecimal(
+                Duration.between(
+                        entryTime,
+                        exitTime
+                ).toMinutes()
+        );
     }
 }
 
-// ---------- SLOT MANAGER ----------
-class SlotManager {
-    static List<Floor> floors = new ArrayList<>();
+interface FareStrategy {
+    BigDecimal calculateFare(Ticket ticket, BigDecimal inputFare);
+}
 
-    public static Status allocateSlot(Vehicle vehicle) {
-        for (Floor floor : floors) {
-            Slot availableSlot = floor.getFirstEmptySlot(vehicle.getArea());
-            if (availableSlot != null) {
-                vehicle.setSlot(availableSlot);
-                vehicle.setEntryTime();
-                availableSlot.useSlot();
-                System.out.println(vehicle + " allocated to slot: " + availableSlot);
-                return Status.SUCCESS;
-            }
+class BaseFareStrategy implements FareStrategy {
+    private static final BigDecimal SMALL_RATE = new BigDecimal("1.0");
+    private static final BigDecimal MEDIUM_RATE = new BigDecimal("2.0");
+    private static final BigDecimal LARGE_RATE = new BigDecimal("3.0");
+    @Override
+    public BigDecimal calculateFare(Ticket ticket, BigDecimal inputFare) {
+        BigDecimal duration = ticket.calculateDuration();
+        BigDecimal rate = BigDecimal.ZERO;
+        if(ticket.getVehicle().getVehicleSize() == VehicleSize.SMALL){
+            rate = inputFare.multiply(SMALL_RATE);
         }
-        System.out.println("No available slot for " + vehicle);
-        return Status.FAILURE;
-    }
+        else if(ticket.getVehicle().getVehicleSize() == VehicleSize.MEDIUM){
+            rate = inputFare.multiply(MEDIUM_RATE);
+        }
+        else if(ticket.getVehicle().getVehicleSize() == VehicleSize.LARGE){
+            rate = inputFare.multiply(LARGE_RATE);
+        }
 
-    public static void exitSlot(Vehicle vehicle) {
-        vehicle.setExitTime();
-        if (vehicle.getSlot() != null) {
-            vehicle.getSlot().emptySlot();
-            System.out.println(vehicle + " has exited. Slot is now free.");
-        }
+        BigDecimal fare = inputFare.add(rate.multiply(duration));
+        return fare;
     }
 }
 
-// ---------- MAIN ----------
+class PeakHourMultiplierStrategy implements FareStrategy {
+    private static final BigDecimal MULTIPLIER = new BigDecimal("1.5");
+    @Override
+    public BigDecimal calculateFare(Ticket ticket, BigDecimal inputFare) {
+        if(isPeakHours(ticket.getEntryTime())){
+            return inputFare.multiply(MULTIPLIER);
+        }
+        return inputFare;
+    }
+    public boolean isPeakHours(LocalDateTime time){
+        int hour = time.getHour();
+        return (hour >= 2 && hour <8);
+    }
+}
+
+
+//Singleton
+class FareCalculator {
+    List<FareStrategy> fareStrategies;
+    public FareCalculator(List<FareStrategy> fareStrategies) {
+        this.fareStrategies = fareStrategies;
+    }
+
+    public BigDecimal calculateFare(Ticket ticket) {
+        BigDecimal fare = BigDecimal.ONE;
+        for(FareStrategy fareStrategy : fareStrategies){
+            fare = fareStrategy.calculateFare(ticket, fare);
+        }
+        return fare;
+    }
+}
+
+
 public class ParkingLot {
-    public static void main(String[] args) {
-        int numOfFloors = 3;
-        int numOfSlots = 5;
+    ParkingManager parkingManager;
+    FareCalculator fareCalculator;
+    public ParkingLot(ParkingManager parkingManager, FareCalculator fareCalculator) {
+        this.parkingManager = parkingManager;
+        this.fareCalculator = fareCalculator;
+    }
 
-        // Initialize Floors and Slots
-        for (int i = 0; i < numOfFloors; i++) {
-            Floor floor = new Floor(numOfSlots, 30);
-            SlotManager.floors.add(floor);
-        }
+    public Ticket enterVehicle(Vehicle vehicle) {
+        ParkingSpot spot = parkingManager.parkVehicle(vehicle);
+        if(spot == null) return null;
+        return new Ticket(123, vehicle, spot, LocalDateTime.now());
+    }
 
-        Vehicle car = new Car(20);
-        Vehicle bike = new Bike(10);
-        Vehicle bus = new Bus(30);
-
-        SlotManager.allocateSlot(car);
-        SlotManager.allocateSlot(bike);
-        SlotManager.allocateSlot(bus);
-
-        try {
-            Thread.sleep(2000); // Simulate 2 seconds of parking time
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        SlotManager.exitSlot(car);
-        Payment payment = new Gpay();
-        payment.makePayment(car);
+    public void leaveVehicle(Ticket ticket) {
+        Vehicle vehicle = ticket.getVehicle();
+        parkingManager.unparkVehicle(vehicle);
+        BigDecimal fare = fareCalculator.calculateFare(ticket);
     }
 }
